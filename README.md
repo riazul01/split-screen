@@ -1,35 +1,50 @@
-# React + TypeScript + Vite
+# Split Screen
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+An interactive and dynamic nested screen splitting system built with **React 19**, **TypeScript**, and **Tailwind CSS**.
 
-Currently, two official plugins are available:
+[Live Preview](https://split-screen-play.vercel.app/)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## 🌟 Features
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+- ✂️ **Dynamic Splitting** — Split any screen vertically (`v`) or horizontally (`h`) with infinite nesting.
+- 🔄 **Smart Undo/Remove (`-`)** — Removing a panel automatically collapses parent containers, seamlessly restoring the previous layout.
+- ↔️ **Smooth Resizing** — Drag dividers to resize panels with pointer/touch support and adjacent screen color gradient indicators.
+- ⌨️ **Keyboard Accessible** — Focus dividers with <kbd>Tab</kbd> and resize using <kbd>Arrow</kbd> keys.
+- 🎨 **Rich Palette** — 40+ curated vibrant colors with automatic sibling contrast.
 
-Note: This will impact Vite dev & build performances.
-You can also try [the experimental native React Compiler support in plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md#rust-react-compiler) by using `compiler: true` in the plugin options instead of using the Babel plugin.
+---
 
-## Expanding the Oxlint configuration
+## 🎮 Controls
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+| Action | Control | Description |
+| :--- | :---: | :--- |
+| **Split Vertically** | <kbd>v</kbd> | Splits current screen side-by-side |
+| **Split Horizontally** | <kbd>h</kbd> | Splits current screen top-and-bottom |
+| **Remove Screen** | <kbd>-</kbd> | Removes current screen & unwraps container |
+| **Resize Panels** | `Drag` / <kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> | Adjusts adjacent panel proportions |
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+---
+
+## 🚀 Quick Start
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+---
+
+## 🛠️ Tech Stack
+
+- **React 19**
+- **TypeScript**
+- **Tailwind CSS v4**
+- **Vite**
