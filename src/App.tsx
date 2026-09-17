@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useRef, useState } from "react";
 
 type Direction = "row" | "col";
 type ButtonAction = "v" | "h" | "-";
@@ -11,6 +11,7 @@ type Screen = {
 type ScreenGroup = {
   id: string | number;
   dir: Direction;
+  sizes?: number[];
   children: ScreenNode[];
 };
 
@@ -42,14 +43,17 @@ const getRandomColor = (): string => {
 const screensData: ScreenGroup = {
   id: "root-group",
   dir: "row",
+  sizes: [50, 25, 25],
   children: [
     {
       id: "group-1",
       dir: "col",
+      sizes: [60, 40],
       children: [
         {
           id: "group-2",
           dir: "row",
+          sizes: [50, 50],
           children: [
             {
               id: "screen-1",
@@ -96,7 +100,7 @@ type ScreenProps = {
 const Screen = ({ screen, handleClick, canRemove }: ScreenProps) => {
   return (
     <div
-      className="w-full h-full flex-1 flex items-center justify-center rounded-[0.4rem] min-w-0 min-h-0 transition-all duration-200"
+      className="w-full h-full flex-1 flex items-center justify-center rounded-[0.4rem] min-w-0 min-h-0 transition-all duration-200 select-none"
       style={{ background: screen.color }}
     >
       <div className="flex items-center shadow-md rounded-[0.35rem] overflow-hidden bg-[#222]/90 backdrop-blur-sm border border-black/20">
@@ -136,29 +140,234 @@ type ScreenRendererProps = {
   node: ScreenNode;
   handleClick: (btn: ButtonAction, screen: Screen) => void;
   canRemove: boolean;
+  onResize: (groupId: string | number, newSizes: number[]) => void;
+};
+
+const getEdgeColor = (node: ScreenNode, edge: "first" | "last"): string => {
+  if (!isScreenGroup(node)) {
+    return node.color;
+  }
+  if (node.children.length === 0) return "#94a3b8";
+  const targetChild =
+    edge === "first"
+      ? node.children[0]
+      : node.children[node.children.length - 1];
+  return getEdgeColor(targetChild, edge);
+};
+
+const ScreenGroupView = ({
+  group,
+  handleClick,
+  canRemove,
+  onResize,
+}: {
+  group: ScreenGroup;
+  handleClick: (btn: ButtonAction, screen: Screen) => void;
+  canRemove: boolean;
+  onResize: (groupId: string | number, newSizes: number[]) => void;
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [activeDivider, setActiveDivider] = useState<number | null>(null);
+  const [focusedDivider, setFocusedDivider] = useState<number | null>(null);
+
+  const sizes =
+    group.sizes && group.sizes.length === group.children.length
+      ? group.sizes
+      : group.children.map(() => 100 / group.children.length);
+
+  const handlePointerDown = (
+    index: number,
+    e: React.PointerEvent<HTMLDivElement>
+  ) => {
+    e.preventDefault();
+    const container = containerRef.current;
+    if (!container) return;
+
+    const isRow = group.dir === "row";
+    const startPos = isRow ? e.clientX : e.clientY;
+    const rect = container.getBoundingClientRect();
+    const totalPx = isRow ? rect.width : rect.height;
+    if (totalPx <= 0) return;
+
+    const initialSizes = [...sizes];
+    const sizeA = initialSizes[index];
+    const sizeB = initialSizes[index + 1];
+    const combinedSize = sizeA + sizeB;
+    const MIN_PERCENT = 4;
+
+    setActiveDivider(index);
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const currentPos = isRow ? moveEvent.clientX : moveEvent.clientY;
+      const deltaPx = currentPos - startPos;
+      const deltaPercent = (deltaPx / totalPx) * 100;
+
+      let newSizeA = sizeA + deltaPercent;
+      let newSizeB = sizeB - deltaPercent;
+
+      if (newSizeA < MIN_PERCENT) {
+        newSizeA = MIN_PERCENT;
+        newSizeB = combinedSize - MIN_PERCENT;
+      } else if (newSizeB < MIN_PERCENT) {
+        newSizeB = MIN_PERCENT;
+        newSizeA = combinedSize - MIN_PERCENT;
+      }
+
+      const nextSizes = [...initialSizes];
+      nextSizes[index] = newSizeA;
+      nextSizes[index + 1] = newSizeB;
+
+      onResize(group.id, nextSizes);
+    };
+
+    const handlePointerUp = () => {
+      setActiveDivider(null);
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  };
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
+    const isRow = group.dir === "row";
+    const step = e.shiftKey ? 5 : 2;
+    let delta = 0;
+
+    if (isRow) {
+      if (e.key === "ArrowLeft") delta = -step;
+      if (e.key === "ArrowRight") delta = step;
+    } else {
+      if (e.key === "ArrowUp") delta = -step;
+      if (e.key === "ArrowDown") delta = step;
+    }
+
+    if (delta !== 0) {
+      e.preventDefault();
+      const initialSizes = [...sizes];
+      const sizeA = initialSizes[index];
+      const sizeB = initialSizes[index + 1];
+      const combinedSize = sizeA + sizeB;
+      const MIN_PERCENT = 4;
+
+      let newSizeA = sizeA + delta;
+      let newSizeB = sizeB - delta;
+
+      if (newSizeA < MIN_PERCENT) {
+        newSizeA = MIN_PERCENT;
+        newSizeB = combinedSize - MIN_PERCENT;
+      } else if (newSizeB < MIN_PERCENT) {
+        newSizeB = MIN_PERCENT;
+        newSizeA = combinedSize - MIN_PERCENT;
+      }
+
+      const nextSizes = [...initialSizes];
+      nextSizes[index] = newSizeA;
+      nextSizes[index + 1] = newSizeB;
+      onResize(group.id, nextSizes);
+    }
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      className={`w-full h-full flex-1 flex ${
+        group.dir === "col" ? "flex-col" : "flex-row"
+      } items-stretch justify-stretch min-w-0 min-h-0 ${
+        activeDivider !== null ? "select-none" : ""
+      }`}
+    >
+      {group.children.map((child, idx) => {
+        const size = sizes[idx] ?? 100 / group.children.length;
+        const isNotLast = idx < group.children.length - 1;
+
+        const nextChild = isNotLast ? group.children[idx + 1] : null;
+        const colorA = isNotLast ? getEdgeColor(child, "last") : "";
+        const colorB = nextChild ? getEdgeColor(nextChild, "first") : "";
+        const isFocusedOrActive =
+          activeDivider === idx || focusedDivider === idx;
+
+        const gradientBackground = isNotLast
+          ? group.dir === "row"
+            ? `linear-gradient(to right, ${colorA}, ${colorB})`
+            : `linear-gradient(to bottom, ${colorA}, ${colorB})`
+          : undefined;
+
+        return (
+          <Fragment key={child.id}>
+            <div
+              className="min-w-0 min-h-0 flex items-stretch"
+              style={{
+                flex: `${size} 1 0%`,
+              }}
+            >
+              <ScreenRenderer
+                node={child}
+                handleClick={handleClick}
+                canRemove={canRemove}
+                onResize={onResize}
+              />
+            </div>
+
+            {isNotLast && (
+              <div
+                tabIndex={0}
+                onPointerDown={(e) => handlePointerDown(idx, e)}
+                onFocus={() => setFocusedDivider(idx)}
+                onBlur={() => setFocusedDivider(null)}
+                onKeyDown={(e) => handleKeyDown(idx, e)}
+                className={`flex-shrink-0 flex items-center justify-center select-none z-10 group outline-none ${
+                  group.dir === "row"
+                    ? "w-[0.3rem] h-full cursor-col-resize"
+                    : "h-[0.3rem] w-full cursor-row-resize"
+                }`}
+                title="Drag or use arrow keys to resize"
+              >
+                <div
+                  className={`rounded-full transition-all duration-300 ease-out ${
+                    group.dir === "row" ? "w-[2px] h-6" : "h-[2px] w-6"
+                  } ${
+                    isFocusedOrActive
+                      ? "scale-110"
+                      : "group-hover:scale-110"
+                  }`}
+                  style={{
+                    background: isFocusedOrActive
+                      ? gradientBackground
+                      : undefined,
+                    boxShadow: isFocusedOrActive
+                      ? `0 0 6px ${colorA}80, 0 0 6px ${colorB}80`
+                      : undefined,
+                  }}
+                >
+                  {!isFocusedOrActive && (
+                    <div className="w-full h-full rounded-full bg-neutral-300 group-hover:bg-neutral-600 transition-colors duration-300" />
+                  )}
+                </div>
+              </div>
+            )}
+          </Fragment>
+        );
+      })}
+    </div>
+  );
 };
 
 const ScreenRenderer = ({
   node,
   handleClick,
   canRemove,
+  onResize,
 }: ScreenRendererProps) => {
   if (isScreenGroup(node)) {
     return (
-      <div
-        className={`w-full h-full flex-1 flex ${
-          node.dir === "col" ? "flex-col" : "flex-row"
-        } items-stretch justify-stretch gap-[0.2rem] min-w-0 min-h-0`}
-      >
-        {node.children.map((child) => (
-          <ScreenRenderer
-            key={child.id}
-            node={child}
-            handleClick={handleClick}
-            canRemove={canRemove}
-          />
-        ))}
-      </div>
+      <ScreenGroupView
+        group={node}
+        handleClick={handleClick}
+        canRemove={canRemove}
+        onResize={onResize}
+      />
     );
   }
 
@@ -197,6 +406,7 @@ const App = () => {
       return {
         id: crypto.randomUUID(),
         dir: btn === "v" ? "row" : "col",
+        sizes: [50, 50],
         children: [newScreen, item],
       };
     }
@@ -212,23 +422,69 @@ const App = () => {
       return item.id === targetId ? null : item;
     }
 
-    const updatedChildren = item.children
-      .map((child) => removeNode(child, targetId))
-      .filter((child): child is ScreenNode => child !== null);
+    const currentSizes =
+      item.sizes && item.sizes.length === item.children.length
+        ? item.sizes
+        : item.children.map(() => 100 / item.children.length);
 
-    if (updatedChildren.length === 0) {
+    const remainingChildren: ScreenNode[] = [];
+    const remainingSizes: number[] = [];
+
+    item.children.forEach((child, idx) => {
+      const updatedChild = removeNode(child, targetId);
+      if (updatedChild !== null) {
+        remainingChildren.push(updatedChild);
+        remainingSizes.push(currentSizes[idx]);
+      }
+    });
+
+    if (remainingChildren.length === 0) {
       return null;
     }
 
     // Collapse single-child group to its child to restore previous state
-    if (updatedChildren.length === 1) {
-      return updatedChildren[0];
+    if (remainingChildren.length === 1) {
+      return remainingChildren[0];
     }
+
+    // Normalize remaining sizes so they sum to 100%
+    const totalSize = remainingSizes.reduce((acc, val) => acc + val, 0);
+    const normalizedSizes =
+      totalSize > 0
+        ? remainingSizes.map((s) => (s / totalSize) * 100)
+        : remainingChildren.map(() => 100 / remainingChildren.length);
 
     return {
       ...item,
-      children: updatedChildren,
+      children: remainingChildren,
+      sizes: normalizedSizes,
     };
+  };
+
+  const updateGroupSizes = (
+    node: ScreenNode,
+    groupId: string | number,
+    newSizes: number[]
+  ): ScreenNode => {
+    if (!isScreenGroup(node)) return node;
+
+    if (node.id === groupId) {
+      return {
+        ...node,
+        sizes: newSizes,
+      };
+    }
+
+    return {
+      ...node,
+      children: node.children.map((child) =>
+        updateGroupSizes(child, groupId, newSizes)
+      ),
+    };
+  };
+
+  const handleResize = (groupId: string | number, newSizes: number[]) => {
+    setScreens((prev) => updateGroupSizes(prev, groupId, newSizes));
   };
 
   const handleClick = (btn: ButtonAction, screen: Screen) => {
@@ -247,11 +503,12 @@ const App = () => {
   const totalScreens = countScreens(screens);
 
   return (
-    <div className="p-[0.2rem] w-screen h-screen flex items-center justify-center bg-white overflow-hidden box-border">
+    <div className="p-[0.3rem] w-screen h-screen flex items-center justify-center bg-white overflow-hidden box-border">
       <ScreenRenderer
         node={screens}
         handleClick={handleClick}
         canRemove={totalScreens > 1}
+        onResize={handleResize}
       />
     </div>
   );
